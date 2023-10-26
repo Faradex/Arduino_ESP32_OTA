@@ -25,6 +25,9 @@
 #include <Arduino_DebugUtils.h>
 #include <WiFiClientSecure.h>
 #include "decompress/utility.h"
+#include "HttpClient.h"
+#include "Ethernet.h"
+
 
 /******************************************************************************
    DEFINES
@@ -83,6 +86,7 @@ public:
   void setCACert (const char *rootCA);
   void setCACertBundle(const uint8_t * bundle);
   int download(const char * ota_url);
+  int download(const char * ota_url, String siteGUID);
   uint8_t read_byte_from_network();
   void write_byte_to_flash(uint8_t data);
   Arduino_ESP32_OTA::Error update();
