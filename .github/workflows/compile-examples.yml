@@ -37,8 +37,10 @@ jobs:
         board:
           - fqbn: "esp32:esp32:esp32"
             type: esp32
+            artifact-name-suffix: esp32-esp32-esp32
           - fqbn: "arduino:esp32:nano_nora"
             type: arduino_esp32
+            artifact-name-suffix: arduino-esp32-arduino_esp32
 
         include:
           - board:
@@ -87,8 +89,8 @@ jobs:
           sketches-report-path: ${{ env.SKETCHES_REPORTS_PATH }}
 
       - name: Save memory usage change report as artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
-          name: ${{ env.SKETCHES_REPORTS_PATH }}
+          name: sketches-report-${{ matrix.board.artifact-name-suffix }}
           if-no-files-found: error
           path: ${{ env.SKETCHES_REPORTS_PATH }}
