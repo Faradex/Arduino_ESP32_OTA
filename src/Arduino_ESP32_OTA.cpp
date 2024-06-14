@@ -27,21 +27,25 @@
 #include "esp_ota_ops.h"
 
 /* Used to bind local module function to actual class instance */
-static Arduino_ESP32_OTA * _esp_ota_obj_ptr = 0;
+static Arduino_ESP32_OTA *_esp_ota_obj_ptr = 0;
 
 /******************************************************************************
    LOCAL MODULE FUNCTIONS
  ******************************************************************************/
 
-static uint8_t read_byte() {
-  if(_esp_ota_obj_ptr) {
+static uint8_t read_byte()
+{
+  if (_esp_ota_obj_ptr)
+  {
     return _esp_ota_obj_ptr->read_byte_from_network();
   }
   return -1;
 }
 
-static void write_byte(uint8_t data) {
-  if(_esp_ota_obj_ptr) {
+static void write_byte(uint8_t data)
+{
+  if (_esp_ota_obj_ptr)
+  {
     _esp_ota_obj_ptr->write_byte_to_flash(data);
   }
 }
@@ -51,14 +55,8 @@ static void write_byte(uint8_t data) {
  ******************************************************************************/
 
 Arduino_ESP32_OTA::Arduino_ESP32_OTA()
-:_client{nullptr}
-,_ota_header{0}
-,_ota_size(0)
-,_crc32(0)
-,_ca_cert{amazon_root_ca}
-,_ca_cert_bundle{nullptr}
+    : _client{nullptr}, _ota_header{0}, _ota_size(0), _crc32(0), _ca_cert{amazon_root_ca}, _ca_cert_bundle{nullptr}
 {
-
 }
 
 /******************************************************************************
@@ -71,24 +69,27 @@ Arduino_ESP32_OTA::Error Arduino_ESP32_OTA::begin()
 
   /* ... initialize CRC ... */
   _crc32 = 0xFFFFFFFF;
-  
-  if(!Update.begin(UPDATE_SIZE_UNKNOWN)) {
+
+  if (!Update.begin(UPDATE_SIZE_UNKNOWN))
+  {
     DEBUG_ERROR("%s: failed to initialize flash update", __FUNCTION__);
     return Error::OtaStorageInit;
   }
   return Error::None;
 }
 
-void Arduino_ESP32_OTA::setCACert (const char *rootCA)
+void Arduino_ESP32_OTA::setCACert(const char *rootCA)
 {
-  if(rootCA != nullptr) {
+  if (rootCA != nullptr)
+  {
     _ca_cert = rootCA;
   }
 }
 
-void Arduino_ESP32_OTA::setCACertBundle (const uint8_t * bundle)
+void Arduino_ESP32_OTA::setCACertBundle(const uint8_t *bundle)
 {
-  if(bundle != nullptr) {
+  if (bundle != nullptr)
+  {
     _ca_cert_bundle = bundle;
   }
 }
@@ -96,14 +97,16 @@ void Arduino_ESP32_OTA::setCACertBundle (const uint8_t * bundle)
 uint8_t Arduino_ESP32_OTA::read_byte_from_network()
 {
   bool is_http_data_timeout = false;
-  for(unsigned long const start = millis();;)
+  for (unsigned long const start = millis();;)
   {
     is_http_data_timeout = (millis() - start) > ARDUINO_ESP32_OTA_BINARY_BYTE_RECEIVE_TIMEOUT_ms;
-    if (is_http_data_timeout) {
+    if (is_http_data_timeout)
+    {
       DEBUG_ERROR("%s: timeout waiting data", __FUNCTION__);
       return -1;
     }
-    if (_client->available()) {
+    if (_client->available())
+    {
       const uint8_t data = _client->read();
       _crc32 = crc_update(_crc32, &data, 1);
       return data;
@@ -116,25 +119,35 @@ void Arduino_ESP32_OTA::write_byte_to_flash(uint8_t data)
   Update.write(&data, 1);
 }
 
-int Arduino_ESP32_OTA::download(const char * ota_url)
+int Arduino_ESP32_OTA::download(const char *ota_url)
 {
   URI url(ota_url);
   int port = 0;
 
-  if (url.protocol_ == "http") {
+  if (url.protocol_ == "http")
+  {
     _client = new EthernetClient();
     port = 80;
-  } else if (url.protocol_ == "https") {
+  }
+  else if (url.protocol_ == "https")
+  {
     _client = new WiFiClientSecure();
-    if (_ca_cert != nullptr) {
-      static_cast<WiFiClientSecure*>(_client)->setCACert(_ca_cert);
-    } else if (_ca_cert_bundle != nullptr) {
-      static_cast<WiFiClientSecure*>(_client)->setCACertBundle(_ca_cert_bundle);
-    } else {
+    if (_ca_cert != nullptr)
+    {
+      static_cast<WiFiClientSecure *>(_client)->setCACert(_ca_cert);
+    }
+    else if (_ca_cert_bundle != nullptr)
+    {
+      static_cast<WiFiClientSecure *>(_client)->setCACertBundle(_ca_cert_bundle);
+    }
+    else
+    {
       DEBUG_VERBOSE("%s: CA not configured for download client");
     }
     port = 443;
-  } else {
+  }
+  else
+  {
     DEBUG_ERROR("%s: Failed to parse OTA URL %s", __FUNCTION__, ota_url);
     return static_cast<int>(Error::UrlParseError);
   }
@@ -152,12 +165,13 @@ int Arduino_ESP32_OTA::download(const char * ota_url)
 
   /* Receive HTTP header. */
   String http_header;
-  bool is_header_complete     = false,
+  bool is_header_complete = false,
        is_http_header_timeout = false;
   for (unsigned long const start = millis(); !is_header_complete;)
   {
     is_http_header_timeout = (millis() - start) > ARDUINO_ESP32_OTA_HTTP_HEADER_RECEIVE_TIMEOUT_ms;
-    if (is_http_header_timeout) break;
+    if (is_http_header_timeout)
+      break;
 
     if (_client->available())
     {
@@ -171,26 +185,30 @@ int Arduino_ESP32_OTA::download(const char * ota_url)
 
   if (!is_header_complete)
   {
-    DEBUG_ERROR("%s: Error receiving HTTP header %s", __FUNCTION__, is_http_header_timeout ? "(timeout)":"");
+    DEBUG_ERROR("%s: Error receiving HTTP header %s", __FUNCTION__, is_http_header_timeout ? "(timeout)" : "");
     return static_cast<int>(Error::HttpHeaderError);
   }
 
   /* Check HTTP response status code */
-  char const * http_response_ptr = strstr(http_header.c_str(), "HTTP/1.");
+  char const *http_response_ptr = strstr(http_header.c_str(), "HTTP/1.");
   if (!http_response_ptr)
   {
     DEBUG_ERROR("%s: Failure to extract http response from header", __FUNCTION__);
     return static_cast<int>(Error::ParseHttpHeader);
   }
   /* Find start of numerical value. */
-  char * ptr = const_cast<char *>(http_response_ptr);
-  for (ptr += strlen("HTTP/1.")+1; (*ptr != '\0') && !isDigit(*ptr); ptr++) { }
+  char *ptr = const_cast<char *>(http_response_ptr);
+  for (ptr += strlen("HTTP/1.") + 1; (*ptr != '\0') && !isDigit(*ptr); ptr++)
+  {
+  }
   /* Extract numerical value. */
   String http_response_str;
-  for (; isDigit(*ptr); ptr++) http_response_str += *ptr;
+  for (; isDigit(*ptr); ptr++)
+    http_response_str += *ptr;
   int const http_response = atoi(http_response_str.c_str());
 
-  if (http_response != 200) {
+  if (http_response != 200)
+  {
     DEBUG_ERROR("%s: HTTP response status code = %d", __FUNCTION__, http_response);
     return static_cast<int>(Error::HttpResponse);
   }
@@ -198,7 +216,7 @@ int Arduino_ESP32_OTA::download(const char * ota_url)
   /* Extract concent length from HTTP header. A typical entry looks like
    *   "Content-Length: 123456"
    */
-  char const * content_length_ptr = strstr(http_header.c_str(), "Content-Length");
+  char const *content_length_ptr = strstr(http_header.c_str(), "Content-Length");
   if (!content_length_ptr)
   {
     DEBUG_ERROR("%s: Failure to extract content length from http header", __FUNCTION__);
@@ -206,20 +224,24 @@ int Arduino_ESP32_OTA::download(const char * ota_url)
   }
   /* Find start of numerical value. */
   ptr = const_cast<char *>(content_length_ptr);
-  for (; (*ptr != '\0') && !isDigit(*ptr); ptr++) { }
+  for (; (*ptr != '\0') && !isDigit(*ptr); ptr++)
+  {
+  }
   /* Extract numerical value. */
   String content_length_str;
-  for (; isDigit(*ptr); ptr++) content_length_str += *ptr;
+  for (; isDigit(*ptr); ptr++)
+    content_length_str += *ptr;
   int const content_length_val = atoi(content_length_str.c_str());
   DEBUG_VERBOSE("%s: Length of OTA binary according to HTTP header = %d bytes", __FUNCTION__, content_length_val);
 
   /* Read the OTA header ... */
-  bool is_ota_header_timeout  = false;
+  bool is_ota_header_timeout = false;
   unsigned long const start = millis();
   for (int i = 0; i < sizeof(OtaHeader);)
   {
     is_ota_header_timeout = (millis() - start) > ARDUINO_ESP32_OTA_BINARY_HEADER_RECEIVE_TIMEOUT_ms;
-    if (is_ota_header_timeout) break;
+    if (is_ota_header_timeout)
+      break;
 
     if (_client->available())
     {
@@ -228,12 +250,14 @@ int Arduino_ESP32_OTA::download(const char * ota_url)
   }
 
   /* ... check for header download timeout ... */
-  if (is_ota_header_timeout) {
+  if (is_ota_header_timeout)
+  {
     return static_cast<int>(Error::OtaHeaderTimeout);
   }
 
   /* ... then check if OTA header length field matches HTTP content length... */
-  if (_ota_header.header.len != (content_length_val - sizeof(_ota_header.header.len) - sizeof(_ota_header.header.crc32))) {
+  if (_ota_header.header.len != (content_length_val - sizeof(_ota_header.header.len) - sizeof(_ota_header.header.crc32)))
+  {
     return static_cast<int>(Error::OtaHeaderLength);
   }
 
@@ -249,7 +273,7 @@ int Arduino_ESP32_OTA::download(const char * ota_url)
   /* Download and decode OTA file */
   _ota_size = lzss_download(read_byte, write_byte, content_length_val - sizeof(_ota_header));
 
-  if(_ota_size <= content_length_val - sizeof(_ota_header))
+  if (_ota_size <= content_length_val - sizeof(_ota_header))
   {
     return static_cast<int>(Error::OtaDownload);
   }
@@ -257,25 +281,40 @@ int Arduino_ESP32_OTA::download(const char * ota_url)
   return _ota_size;
 }
 
-int Arduino_ESP32_OTA::download(const char * ota_url, String siteGUID)
+int Arduino_ESP32_OTA::download(const char *ota_url, String siteGUID)
 {
   URI url(ota_url);
   int port = 0;
 
-  if (url.protocol_ == "http") {
+  if (url.protocol_ == "http")
+  {
+#ifdef DEVELOPMENT_WIFI
+    _client = new WiFiClient();
+    Serial.println("Development WiFi");
+#else
     _client = new EthernetClient();
+#endif
     port = 80;
-  } else if (url.protocol_ == "https") {
+  }
+  else if (url.protocol_ == "https")
+  {
     _client = new WiFiClientSecure();
-    if (_ca_cert != nullptr) {
-      static_cast<WiFiClientSecure*>(_client)->setCACert(_ca_cert);
-    } else if (_ca_cert_bundle != nullptr) {
-      static_cast<WiFiClientSecure*>(_client)->setCACertBundle(_ca_cert_bundle);
-    } else {
+    if (_ca_cert != nullptr)
+    {
+      static_cast<WiFiClientSecure *>(_client)->setCACert(_ca_cert);
+    }
+    else if (_ca_cert_bundle != nullptr)
+    {
+      static_cast<WiFiClientSecure *>(_client)->setCACertBundle(_ca_cert_bundle);
+    }
+    else
+    {
       DEBUG_VERBOSE("%s: CA not configured for download client");
     }
     port = 443;
-  } else {
+  }
+  else
+  {
     DEBUG_ERROR("%s: Failed to parse OTA URL %s", __FUNCTION__, ota_url);
     return static_cast<int>(Error::UrlParseError);
   }
@@ -294,12 +333,13 @@ int Arduino_ESP32_OTA::download(const char * ota_url, String siteGUID)
 
   /* Receive HTTP header. */
   String http_header;
-  bool is_header_complete     = false,
+  bool is_header_complete = false,
        is_http_header_timeout = false;
   for (unsigned long const start = millis(); !is_header_complete;)
   {
     is_http_header_timeout = (millis() - start) > ARDUINO_ESP32_OTA_HTTP_HEADER_RECEIVE_TIMEOUT_ms;
-    if (is_http_header_timeout) break;
+    if (is_http_header_timeout)
+      break;
 
     if (_client->available())
     {
@@ -313,26 +353,30 @@ int Arduino_ESP32_OTA::download(const char * ota_url, String siteGUID)
 
   if (!is_header_complete)
   {
-    DEBUG_ERROR("%s: Error receiving HTTP header %s", __FUNCTION__, is_http_header_timeout ? "(timeout)":"");
+    DEBUG_ERROR("%s: Error receiving HTTP header %s", __FUNCTION__, is_http_header_timeout ? "(timeout)" : "");
     return static_cast<int>(Error::HttpHeaderError);
   }
 
   /* Check HTTP response status code */
-  char const * http_response_ptr = strstr(http_header.c_str(), "HTTP/1.1");
+  char const *http_response_ptr = strstr(http_header.c_str(), "HTTP/1.1");
   if (!http_response_ptr)
   {
     DEBUG_ERROR("%s: Failure to extract http response from header", __FUNCTION__);
     return static_cast<int>(Error::ParseHttpHeader);
   }
   /* Find start of numerical value. */
-  char * ptr = const_cast<char *>(http_response_ptr);
-  for (ptr += strlen("HTTP/1.1"); (*ptr != '\0') && !isDigit(*ptr); ptr++) { }
+  char *ptr = const_cast<char *>(http_response_ptr);
+  for (ptr += strlen("HTTP/1.1"); (*ptr != '\0') && !isDigit(*ptr); ptr++)
+  {
+  }
   /* Extract numerical value. */
   String http_response_str;
-  for (; isDigit(*ptr); ptr++) http_response_str += *ptr;
+  for (; isDigit(*ptr); ptr++)
+    http_response_str += *ptr;
   int const http_response = atoi(http_response_str.c_str());
 
-  if (http_response != 200) {
+  if (http_response != 200)
+  {
     DEBUG_ERROR("%s: HTTP response status code = %d", __FUNCTION__, http_response);
     return static_cast<int>(Error::HttpResponse);
   }
@@ -340,7 +384,7 @@ int Arduino_ESP32_OTA::download(const char * ota_url, String siteGUID)
   /* Extract concent length from HTTP header. A typical entry looks like
    *   "Content-Length: 123456"
    */
-  char const * content_length_ptr = strstr(http_header.c_str(), "Content-Length");
+  char const *content_length_ptr = strstr(http_header.c_str(), "Content-Length");
   if (!content_length_ptr)
   {
     DEBUG_ERROR("%s: Failure to extract content length from http header", __FUNCTION__);
@@ -348,20 +392,24 @@ int Arduino_ESP32_OTA::download(const char * ota_url, String siteGUID)
   }
   /* Find start of numerical value. */
   ptr = const_cast<char *>(content_length_ptr);
-  for (; (*ptr != '\0') && !isDigit(*ptr); ptr++) { }
+  for (; (*ptr != '\0') && !isDigit(*ptr); ptr++)
+  {
+  }
   /* Extract numerical value. */
   String content_length_str;
-  for (; isDigit(*ptr); ptr++) content_length_str += *ptr;
+  for (; isDigit(*ptr); ptr++)
+    content_length_str += *ptr;
   int const content_length_val = atoi(content_length_str.c_str());
   DEBUG_VERBOSE("%s: Length of OTA binary according to HTTP header = %d bytes", __FUNCTION__, content_length_val);
 
   /* Read the OTA header ... */
-  bool is_ota_header_timeout  = false;
+  bool is_ota_header_timeout = false;
   unsigned long const start = millis();
   for (int i = 0; i < sizeof(OtaHeader);)
   {
     is_ota_header_timeout = (millis() - start) > ARDUINO_ESP32_OTA_BINARY_HEADER_RECEIVE_TIMEOUT_ms;
-    if (is_ota_header_timeout) break;
+    if (is_ota_header_timeout)
+      break;
 
     if (_client->available())
     {
@@ -370,12 +418,14 @@ int Arduino_ESP32_OTA::download(const char * ota_url, String siteGUID)
   }
 
   /* ... check for header download timeout ... */
-  if (is_ota_header_timeout) {
+  if (is_ota_header_timeout)
+  {
     return static_cast<int>(Error::OtaHeaderTimeout);
   }
 
   /* ... then check if OTA header length field matches HTTP content length... */
-  if (_ota_header.header.len != (content_length_val - sizeof(_ota_header.header.len) - sizeof(_ota_header.header.crc32))) {
+  if (_ota_header.header.len != (content_length_val - sizeof(_ota_header.header.len) - sizeof(_ota_header.header.crc32)))
+  {
     return static_cast<int>(Error::OtaHeaderLength);
   }
 
@@ -391,7 +441,7 @@ int Arduino_ESP32_OTA::download(const char * ota_url, String siteGUID)
   /* Download and decode OTA file */
   _ota_size = lzss_download(read_byte, write_byte, content_length_val - sizeof(_ota_header));
 
-  if(_ota_size <= content_length_val - sizeof(_ota_header))
+  if (_ota_size <= content_length_val - sizeof(_ota_header))
   {
     return static_cast<int>(Error::OtaDownload);
   }
@@ -404,12 +454,14 @@ Arduino_ESP32_OTA::Error Arduino_ESP32_OTA::update()
   /* ... then finalise ... */
   _crc32 ^= 0xFFFFFFFF;
 
-  if(_crc32 != _ota_header.header.crc32) {
+  if (_crc32 != _ota_header.header.crc32)
+  {
     DEBUG_ERROR("%s: CRC32 mismatch", __FUNCTION__);
     return Error::OtaHeaderCrc;
   }
 
-  if (!Update.end(true)) {
+  if (!Update.end(true))
+  {
     DEBUG_ERROR("%s: Failure to apply OTA update", __FUNCTION__);
     return Error::OtaStorageEnd;
   }
